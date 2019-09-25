@@ -10,7 +10,7 @@ def create_response(
     data: dict = None, status: int = 200, message: str = ""
 ) -> Tuple[Response, int]:
     """Wraps response in a consistent format throughout the API.
-    
+
     Format inspired by https://medium.com/@shazow/how-i-design-json-api-responses-71900f00f2db
     Modifications included:
     - make success a boolean since there's only 2 values
@@ -51,9 +51,15 @@ def mirror(name):
     data = {"name": name}
     return create_response(data)
 
+
 @app.route("/shows", methods=['GET'])
 def get_all_shows():
-    return create_response({"shows": db.get('shows')})
+    min_episodes = int(request.args.get("minEpisodes"))
+    shows = db.get('shows')
+    filtered_shows = [
+        show for show in shows if int(show["episodes_seen"]) > min_episodes]
+    return create_response({"shows": filtered_shows})
+
 
 @app.route("/shows/<id>", methods=['DELETE'])
 def delete_show(id):
@@ -63,7 +69,31 @@ def delete_show(id):
     return create_response(message="Show deleted")
 
 
-# TODO: Implement the rest of the API here!
+@app.route("/shows/<id>", methods=['GET'])
+def get_show_by_id(id):
+    if db.getById('shows', int(id)) is None:
+        return create_response(status=404, message="No show with this id exists")
+    return create_response({"show": db.getById('shows', int(id))})
+
+
+@app.route("/shows", methods=['POST'])
+def create_show():
+    payload = request.get_json()
+    for key in ["name", "episodes_seen"]:
+        if key not in payload:
+            return create_response(status=422, message="Oops! Please include the parameter " + key)
+    return create_response(status=201, data={"show": db.create('shows', payload)})
+
+
+@app.route("/shows/<id>", methods=['PUT'])
+def update_show(id):
+    if db.getById('shows', int(id)) is None:
+        return create_response(status=404, message="No show with this id exists")
+    payload = request.get_json()
+    update_values = {key: payload[key]
+                     for key in payload if key in ["name", "episodes_seen"]}
+    return create_response(status=201, data={"show": db.updateById('shows', int(id), update_values)})
+
 
 """
 ~~~~~~~~~~~~ END API ~~~~~~~~~~~~
